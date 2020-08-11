@@ -4,6 +4,7 @@ import AppError from '@shared/errors/AppError';
 
 import IProductsRepository from '@modules/products/repositories/IProductsRepository';
 import ICustomersRepository from '@modules/customers/repositories/ICustomersRepository';
+import IUpdateProductsQuantityDTO from '@modules/products/dtos/IUpdateProductsQuantityDTO';
 import Order from '../infra/typeorm/entities/Order';
 import IOrdersRepository from '../repositories/IOrdersRepository';
 
@@ -49,6 +50,8 @@ class CreateOrderService {
       throw new AppError('Products not found.');
     }
 
+    const updatedProductsQuantities: IUpdateProductsQuantityDTO[] = [];
+
     const orderProducts = products.map(requestProduct => {
       const productBD = productsForGetPrices.find(
         prodBD => prodBD.id === requestProduct.id,
@@ -58,12 +61,23 @@ class CreateOrderService {
         throw new AppError('Invalid Product.');
       }
 
+      if (productBD.quantity < requestProduct.quantity) {
+        throw new AppError("The product don't have the quantity.");
+      }
+
+      updatedProductsQuantities.push({
+        id: requestProduct.id,
+        quantity: productBD.quantity - requestProduct.quantity,
+      });
+
       return {
         product_id: requestProduct.id,
         price: productBD.price,
         quantity: requestProduct.quantity,
       };
     });
+
+    await this.productsRepository.updateQuantity(updatedProductsQuantities);
 
     const order = await this.ordersRepository.create({
       customer,
